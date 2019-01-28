@@ -1,5 +1,5 @@
 ---
-title: "Manchester AIr Quality Maps"
+title: "Birmingham Air Quality Maps"
 author: "James Smith"
 output:
   html_document:
@@ -11,51 +11,56 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding = encoding, output_dir = "docs") })      
 ---
 
-# Manchester Air Quality
+# Birmingham Air Quality
 
-To create maps of annual average air quality (PM2.5 & NO2) for Greater Manchester we downloaded air quality data from the [DEFRA Local Air Quality Management webpages](https://uk-air.defra.gov.uk/data/laqm-background-maps). Specifically, we downloaded PM2.5 and NO2 data for the regions of 'Midlands', 'Northern England' and 'Wales' for the year 2011, and for the years 2015 to 2030. The 2011 data was downloaded from the 2011 model predictions, and the 2015 to 2030 data was downloaded from the 2015 model predictions. Using these data of regular 1km by 1km pollutant points we then created a raster layer (for every year and pollutant) in the R statistical analysis package. Mean spatially-weighted concentrations for each Greater Manchester Ward (Bolton, Bury, Oldham, Rochdale, Stockport, Tameside, Trafford, Wigan, Manchester, Salford) were then calculated, using the Ward boundaries from the Governments [Open Data portal](http://geoportal.statistics.gov.uk/datasets/wards-december-2016-generalised-clipped-boundaries-in-the-uk).
-
-```{r , include=FALSE}
+```{r include=FALSE, warning = FALSE, message = FALSE}
 
 rm(list=ls())
 
 ### Loading any missing libraries
 
-library(rvest)
-library(stringr)
-library(raster)
-library(rgdal)
-library(rgeos)
-library(ggplot2)
-library(sf)
-library(rmarkdown)
+library(rvest, quietly = TRUE)
+library(stringr, quietly = TRUE)
+library(raster, quietly = TRUE)
+library(rgdal, quietly = TRUE)
+library(rgeos, quietly = TRUE)
+library(tidyverse, quietly = TRUE)
+library(sf, quietly = TRUE)
+library(rmarkdown, quietly = TRUE)
 ```
 
-```{r , echo = FALSE, message = FALSE, warning  = FALSE}
+```{r echo = FALSE, message = FALSE, warning = FALSE}
 ukgrid      <- "+init=epsg:27700"
 latlong     <- "+init=epsg:4326"
 
 
-# Wales, Midland, Northern England
+# Midland
 years       <- c(2011,2015,2020,2025,2030)
-regions     <- c('Midlands', 'Northern_England', 'Wales')
+#years       <- c(2011)
+regions     <- c('Midlands')
 
-authorities <- data.frame(authority_name = c('Telford and Wrekin', 'South Staffordshire', 'Cannock Chase', 'Wolverhampton', 'Dudley', 'Sandwell', 'Tamworth', 'North Warwickshire'),
+authorities <- data.frame(authority_name = c('Cannock Chase', 'Wolverhampton', 'Dudley', 'Sandwell', 'Tamworth', 'North Warwickshire',
+                                             'Birmingham', 'Solihull', 'Lichfield', 'Walsall', 'Bromsgrove', 'Redditch', 'Wyre Forest'),
                           stringsAsFactors = F)
+```
+
+To create maps of annual average air quality (PM2.5 & NO2) for Birmingham we downloaded air quality data from the [DEFRA Local Air Quality Management webpages](https://uk-air.defra.gov.uk/data/laqm-background-maps). Specifically, we downloaded PM2.5 and NO2 data for the regions of 'Midlands' and 'Wales' for the year 2011, and for the years 2015 to 2030. The 2011 data was downloaded from the 2011 model predictions, and the 2015 to 2030 data was downloaded from the 2015 model predictions. Using these data of regular 1km by 1km pollutant points we then created a raster layer (for every year and pollutant) in the R statistical analysis package. Mean spatially-weighted concentrations for each Birmingham local authority in the study (`r paste(authorities$authority_name, collapse = ', ')`) were then calculated, using the Ward boundaries from the Governments [Open Data portal](http://geoportal.statistics.gov.uk/datasets/wards-december-2016-generalised-clipped-boundaries-in-the-uk).
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
 
 ###  getting a geojson of UK wards from governmant data portal
 
-url                 <- 'https://opendata.arcgis.com/datasets/d5c9c1d89a5a44e9a7f88f182ffe5ba2_2.geojson'
-wards               <- readOGR(dsn = url, layer = "d5c9c1d89a5a44e9a7f88f182ffe5ba2_2")
-wards               <- spTransform(wards, ukgrid)
-wards               <- wards[wards$lad16nm %in% authorities$authority_name,]
+wards               <- st_read('https://opendata.arcgis.com/datasets/d5c9c1d89a5a44e9a7f88f182ffe5ba2_2.geojson', quiet = T) %>% 
+                       st_transform(27700) %>%
+                       filter(lad16nm %in% authorities$authority_name) %>%
+                       as('Spatial')
 
 ### getting a geojson of UK local authorities from data portal
 
-url                 <- 'https://opendata.arcgis.com/datasets/8edafbe3276d4b56aec60991cbddda50_4.geojson'
-auth_boundary       <- readOGR(dsn = url, layer = "8edafbe3276d4b56aec60991cbddda50_4")
-auth_boundary       <- spTransform(auth_boundary, ukgrid)
-auth_boundary       <- auth_boundary[auth_boundary$lad15nm %in% authorities$authority_name,]
+auth_boundary       <- st_read('https://opendata.arcgis.com/datasets/8edafbe3276d4b56aec60991cbddda50_4.geojson', quiet = T) %>% 
+                       st_transform(27700) %>%
+                       filter(lad15nm %in% authorities$authority_name) %>%
+                       as('Spatial')
 
 ## Link my session to the form I'm going to download data from
 session_2015       <- html_session("https://uk-air.defra.gov.uk/data/laqm-background-maps?year=2015")
@@ -126,7 +131,7 @@ names(no2_data)   <- c('x', 'y', 'no2', 'year')
 pm25_data          <- pm25_data[,c('x', 'y', 'Total_PM._', 'PM_secondary_', 'Residual.Salt_', 'year')]
 names(pm25_data)   <- c('x', 'y', 'pm25_total', 'pm25_secondary', 'pm25_residual_salt', 'year')
 
-## Making a raster file of the wider Manchester area for each pollutant, for each year
+## Making a raster file of the wider Birmingham area for each pollutant, for each year
 ## Making NO2 raster stack
 
 ## Now a loop to make a raster stack of the NO2 data, one layer for each year
@@ -193,7 +198,7 @@ for (i in 1:length(names(no2_raster))) {
   
   col_name <- paste0(as.character(names(no2_raster)[i]), '_', 'no2_total')
   
-  wards@data[,col_name] <- extract(no2_raster[[as.character(names(no2_raster)[i])]],
+  wards@data[,col_name] <- raster::extract(no2_raster[[as.character(names(no2_raster)[i])]],
                                    wards,
                                    weights=TRUE,
                                    fun=mean,
@@ -208,7 +213,7 @@ for (i in 1:length(names(pm25_raster))) {
   
   col_name <- as.character(names(pm25_raster)[i])
   
-  wards@data[,col_name] <- extract(pm25_raster[[as.character(names(pm25_raster)[i])]],
+  wards@data[,col_name] <- raster::extract(pm25_raster[[as.character(names(pm25_raster)[i])]],
                                    wards,
                                    weights=TRUE,
                                    fun=mean,
@@ -242,7 +247,7 @@ wards                 <- st_as_sf(wards)
 
 ## First PM2.5 stuff
 source('https://raw.githubusercontent.com/KCL-ERG/colour_schemes/master/pm25_laei2013_colours_breaks.R')
-pm25_laei2013_breaks            <-  4:15
+pm25_laei2013_breaks            <-  c(4:14, 16)
 pm25_laei2013_labels            <- c('0-4' = "#FFFFFF",
                                      '4-5' = "#01129C",
                                      '5-6' = "#0325D3",
@@ -254,8 +259,8 @@ pm25_laei2013_labels            <- c('0-4' = "#FFFFFF",
                                      '11-12' = "#A4EB50",
                                      '12-13' = "#FFFF80",
                                      '13-14' = "#FFD600",
-                                     '14-15' = '#F97C00')
-pm25_factors                    <- c('0-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10', '10-11', '11-12','12-13','13-14', '14-15')
+                                     '14-16' = '#F97C00')
+pm25_factors                    <- c('0-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10', '10-11', '11-12','12-13','13-14', '14-16')
 
 ## Now NO2 stuff
 source('https://raw.githubusercontent.com/KCL-ERG/colour_schemes/master/no2_laei2013_colours_breaks.R')
@@ -287,11 +292,13 @@ no2_maps_list        <- paste0(years, '_no2_total')
 
 ## Fix PM data and do the plots
 ```
+
 ## PM2.5 maps
-```{r , echo = FALSE, message = FALSE, warnings  = FALSE, results='asis'}
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, results='asis'}
 for (i in 1:length(pm25_maps_list)) {
   
-  wards[[pm25_maps_list[i]]]  <- cut(wards[[pm25_maps_list[i]]][,1], breaks=pm25_laei2013_breaks)
+  wards[[pm25_maps_list[i]]]  <- cut(pull(wards, pm25_maps_list[i]), breaks=pm25_laei2013_breaks)
   wards[[pm25_maps_list[i]]]  <- gsub("(", "", wards[[pm25_maps_list[i]]], fixed=T)
   wards[[pm25_maps_list[i]]]  <- gsub("]", "", wards[[pm25_maps_list[i]]], fixed=T)
   wards[[pm25_maps_list[i]]]  <- gsub(",", "-", wards[[pm25_maps_list[i]]], fixed=T)
@@ -306,24 +313,26 @@ for (i in 1:length(pm25_maps_list)) {
                                           axis.ticks = element_blank(),
                                           panel.background = element_blank(),
                                           legend.background = element_rect(size=0.2, linetype="solid", 
-                                                                           colour ="black"))
+                                                                           colour ="black")) +
+                                    ggtitle(paste(unlist(strsplit(pm25_maps_list[i], '_'))[[1]], unlist(strsplit(pm25_maps_list[i], '_'))[[3]]))
   
   ggsave(paste0('maps/', pm25_maps_list[i], ".png"), plot)
   ggsave(paste0('maps/', pm25_maps_list[i], ".svg"), plot)
 
-  print(pm25_maps_list[i])
   print(plot)
   
 }
 ```
+
 ## NO2 maps
-```{r , echo = FALSE, message = FALSE, warnings  = FALSE}
+
+```{r echo = FALSE, message = FALSE, warning=F}
 
 
 ## Fix NO data and do the plots
 for (i in 1:length(no2_maps_list)) {
   
-  wards[[no2_maps_list[i]]]  <- cut(wards[[no2_maps_list[i]]][,1], breaks=no2_laei2013_breaks)
+  wards[[no2_maps_list[i]]]  <- cut(pull(wards, no2_maps_list[i]), breaks=no2_laei2013_breaks)
   wards[[no2_maps_list[i]]]  <- gsub("(", "", wards[[no2_maps_list[i]]], fixed=T)
   wards[[no2_maps_list[i]]]  <- gsub("]", "", wards[[no2_maps_list[i]]], fixed=T)
   wards[[no2_maps_list[i]]]  <- gsub(",", "-", wards[[no2_maps_list[i]]], fixed=T)
@@ -336,12 +345,12 @@ for (i in 1:length(no2_maps_list)) {
                                           axis.ticks = element_blank(),
                                           panel.background = element_blank(),
                                           legend.background = element_rect(size=0.2, linetype="solid", 
-                                                                           colour ="black"))
+                                                                           colour ="black")) +
+                                    ggtitle(paste(unlist(strsplit(no2_maps_list[i], '_'))[[1]], unlist(strsplit(no2_maps_list[i], '_'))[[3]]))
   
  ggsave(paste0('maps/', no2_maps_list[i], ".png"), plot)
  ggsave(paste0('maps/', no2_maps_list[i], ".svg"), plot)
   
-  print(no2_maps_list[i])
   print(plot)
   
   
@@ -359,21 +368,22 @@ auth_centroids[auth_centroids$id == 1,]$x <- auth_centroids[auth_centroids$id ==
 
 plot                      <- ggplot(auth_boundary, aes(colour = lad15nm)) +
                                 geom_sf() +
-                                scale_colour_manual(values = rep('black', 12), name = 'Local Authority', labels = paste(1:12, auth_boundary$lad15nm)) +
+                                scale_colour_manual(values = rep('black', length(auth_boundary$lad15nm)), name = 'Local Authority', labels = paste(1:length(auth_boundary$lad15nm), auth_boundary$lad15nm)) +
                                 theme(axis.text = element_blank(),
                                       axis.ticks = element_blank(),
                                       axis.title = element_blank(),
                                       panel.background = element_blank(),
                                       legend.background = element_rect(size=0.2, linetype="solid", colour ="black")) +
-                                  geom_text(data = auth_centroids, aes(x, y, label = id), colour='black')
+                                  geom_text(data = auth_centroids, aes(x, y, label = id), colour='black') +
+                            ggtitle('Local authorities')
 
 ggsave(file='maps/authorities.png', plot)
 ggsave(file='maps/authorities.svg', plot)
 ```
 
-### Map of local authorities
+## Map of local authorities
 
-```{r , echo = FALSE, message = FALSE, warning = FALSE}
+```{r echo = FALSE, message = FALSE, warning = FALSE}
 print(plot)
 ```
 
