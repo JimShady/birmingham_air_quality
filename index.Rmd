@@ -251,11 +251,52 @@ Now code to sort out the breaks and colour for the maps
 ```{r echo = FALSE, message = FALSE, warning = FALSE}
 ## Sorting out colours and breaks
 
-## First PM2.5 stuff
-source('https://raw.githubusercontent.com/KCL-ERG/colour_schemes/master/2016/pm25_laei2016_colours_breaks.R')
+pm25_laei2013_breaks            <-  c(4:14,20)
+pm25_laei2013_colours           <- c('0-4' = "#FFFFFF",
+                                     '4-5' = "#01129C",
+                                     '5-6' = "#0325D3",
+                                     '6-7' = "#064AF4",
+                                     '7-8' = "#0C95E9",
+                                     '8-9' = "#19CFD2",
+                                     '9-10' = "#82FDCF",
+                                     '10-11' = "#68DE85",
+                                     '11-12' = "#A4EB50",
+                                     '12-13' = "#FFFF80",
+                                     '13-14' = "#FFD600",
+                                     '14-20' = '#F97C00')
+pm25_laei2013_labels           <- c('0-4',
+                                     '4-5',
+                                     '5-6',
+                                     '6-7',
+                                     '7-8',
+                                     '8-9',
+                                     '9-10',
+                                     '10-11',
+                                     '11-12',
+                                     '12-13',
+                                     '13-14',
+                                     '14-20')
 
-## Now NO2 stuff
-source('https://raw.githubusercontent.com/KCL-ERG/colour_schemes/master/2016/no2_laei2016_colours_breaks.R')
+no2_laei2013_breaks            <-  c(4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,40)
+no2_laei2013_colours            <- c(  '0-4' = "#FFFFFF",
+                                      '4-6' = "#01129C",
+                                      '6-8' = "#0325D3",
+                                      '8-10' = "#064AF4",
+                                      '10-12' = "#0C95E9",
+                                      '12-14' = "#19CFD2",
+                                      '14-16' = "#82FDCF",
+                                      '16-18' = "#68DE85",
+                                      '18-20' = "#A4EB50",
+                                      '20-22' = "#FFFF80",
+                                      '22-24' = "#FFD600",
+                                      '24-26' = '#FFAD5B',
+                                      '26-28' = '#F97C00',
+                                      '28-30' = '#FF0000',
+                                      '30-32' = '#800040',
+                                      '32-40' = '#400040'
+                                    )
+no2_laei2013_labels                    <- c('0-4', '4-6', '6-8', '8-10', '10-12', '12-14', '14-16', '16-18', '18-20','20-22','22-24', '24-26', '26-28', '28-30', '30-32', '32-40')
+
 
 ################################################
 pm25_maps_list       <- paste0(years, '_pm25_total')
@@ -269,13 +310,15 @@ no2_maps_list        <- paste0(years, '_no2_total')
 ```{r echo = FALSE, message = FALSE, warning = F}
 for (i in 1:length(pm25_maps_list)) {
   
-  wards[[pm25_maps_list[i]]]  <- cut(wards[[pm25_maps_list[i]]],
-                                     breaks = pm25_laei2016_breaks,
-                                     labels = pm25_laei2016_labels[2:13])
+  wards[[pm25_maps_list[i]]]  <- cut(wards[[pm25_maps_list[i]]][,1], breaks=pm25_laei2013_breaks)
+  wards[[pm25_maps_list[i]]]  <- gsub("(", "", wards[[pm25_maps_list[i]]], fixed=T)
+  wards[[pm25_maps_list[i]]]  <- gsub("]", "", wards[[pm25_maps_list[i]]], fixed=T)
+  wards[[pm25_maps_list[i]]]  <- gsub(",", "-", wards[[pm25_maps_list[i]]], fixed=T)
+  wards[[pm25_maps_list[i]]]  <- factor(wards[[pm25_maps_list[i]]], levels = pm25_laei2013_labels)
   
   plot                       <- ggplot(wards) +
                                     geom_sf(aes(fill = wards[[pm25_maps_list[i]]]), colour='grey') +
-                                    scale_fill_manual(values = pm25_laei2016_colours,
+                                    scale_fill_manual(values = pm25_laei2013_colours,
                                                       drop=FALSE,
                                                       name = expression(paste('PM'[2.5], ' ', mu, 'g ', m^3, ' '))) +
                                     theme(axis.text = element_blank(),
@@ -299,13 +342,15 @@ for (i in 1:length(pm25_maps_list)) {
 ## Fix NO data and do the plots
 for (i in 1:length(no2_maps_list)) {
   
-  wards[[no2_maps_list[i]]]  <- cut(wards[[no2_maps_list[i]]],
-                                     breaks = no2_laei2016_breaks,
-                                     labels = no2_laei2016_labels[2:17])
+  wards[[no2_maps_list[i]]]  <- cut(wards[[no2_maps_list[i]]][,1], breaks=no2_laei2013_breaks)
+  wards[[no2_maps_list[i]]]  <- gsub("(", "", wards[[no2_maps_list[i]]], fixed=T)
+  wards[[no2_maps_list[i]]]  <- gsub("]", "", wards[[no2_maps_list[i]]], fixed=T)
+  wards[[no2_maps_list[i]]]  <- gsub(",", "-", wards[[no2_maps_list[i]]], fixed=T)
+  wards[[no2_maps_list[i]]]  <- factor(wards[[no2_maps_list[i]]], levels = no2_laei2013_labels)
   
   plot                      <- ggplot(wards) +
                                     geom_sf(aes(fill = wards[[no2_maps_list[i]]]), colour='grey') +
-                                    scale_fill_manual(values = no2_laei2016_colours,
+                                    scale_fill_manual(values = no2_laei2013_colours,
                                                       drop=FALSE,
                                                       name = expression(paste('NO'[2], ' ', mu, 'g ', m^3, ' '))) +
                                     theme(axis.text = element_blank(),
